@@ -49,6 +49,6 @@ const InstitutionSchema = new mongoose.Schema({
     versionKey: false
 });
 
-const InstitutionModel= mongoose.model("Institution", InstitutionSchema);
+const InstitutionModel= mongoose.model("Institutions", InstitutionSchema);
 
 export {  InstitutionModel };       

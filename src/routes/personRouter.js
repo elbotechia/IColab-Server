@@ -19,6 +19,14 @@ export class PersonRouter {
             this.personController.getAll.bind(this.personController)
         );
 
+        // GET /persons/username/:username - Get person by username (must come before /:id)
+        this.router.get(
+            '/username/:username',
+            personValidators.getByUsername,
+            handleValidationErrors,
+            this.personController.getByUsername.bind(this.personController)
+        );
+
         // GET /persons/:id - Get person by ID
         this.router.get(
             '/:id',
@@ -27,7 +35,7 @@ export class PersonRouter {
             this.personController.getById.bind(this.personController)
         );
 
-        // POST /persons - Create new person
+        // POST /persons - Create new person (registration)
         this.router.post(
             '/',
             personValidators.create,
@@ -51,19 +59,22 @@ export class PersonRouter {
             this.personController.delete.bind(this.personController)
         );
 
-        // GET /persons/username/:username - Get person by username
-        this.router.get(
-            '/username/:username',
-            this.personController.getByUsername.bind(this.personController)
-        );
-
         // PUT /persons/:id/password - Change password
         this.router.put(
             '/:id/password',
-            personValidators.getById,
+            personValidators.changePassword,
             handleValidationErrors,
             this.personController.changePassword.bind(this.personController)
         );
+
+        // POST /persons/sign-in - Sign in (authentication)
+        this.router.post(
+            '/sign-in',
+            personValidators.signIn,
+            handleValidationErrors,
+            this.personController.signIn.bind(this.personController)
+        );
+
     }
 
     getRouter() {

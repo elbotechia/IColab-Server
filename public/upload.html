@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload de Arquivos - IColab</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .upload-form {
+            margin: 20px 0;
+        }
+        .file-input {
+            margin: 10px 0;
+            padding: 10px;
+            border: 2px dashed #ddd;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .file-input input[type="file"] {
+            margin: 10px 0;
+        }
+        .submit-btn {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .submit-btn:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .file-info {
+            background-color: #e2e3e5;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .actions {
+            margin: 10px 0;
+        }
+        .action-btn {
+            background-color: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 0 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .action-btn.delete {
+            background-color: #dc3545;
+        }
+        .action-btn.view {
+            background-color: #17a2b8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Upload de Arquivos</h1>
+        
+        <form id="uploadForm" class="upload-form" enctype="multipart/form-data">
+            <div class="file-input">
+                <label for="fileInput">Selecione um arquivo para upload:</label><br>
+                <input type="file" id="fileInput" name="file" required>
+            </div>
+            <button type="submit" class="submit-btn">Fazer Upload</button>
+        </form>
+
+        <div id="result" class="result">
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        const uploadForm = document.getElementById('uploadForm');
+        const resultDiv = document.getElementById('result');
+        const resultContent = document.getElementById('resultContent');
+
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showResult('Erro: Selecione um arquivo.', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                showResult('Fazendo upload...', 'success');
+                
+                const response = await fetch('/api/uploads', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showUploadSuccess(data);
+                } else {
+                    showResult(`Erro: ${data.message || 'Erro desconhecido'}`, 'error');
+                }
+            } catch (error) {
+                console.error('Erro no upload:', error);
+                showResult(`Erro de conexão: ${error.message}`, 'error');
+            }
+        });
+
+        function showResult(message, type) {
+            resultContent.innerHTML = message;
+            resultDiv.className = `result ${type}`;
+            resultDiv.style.display = 'block';
+        }
+
+        function showUploadSuccess(data) {
+            const fileInfo = data.fileInfo;
+            const html = `
+                <div class="success">
+                    <h3>Upload realizado com sucesso!</h3>
+                </div>
+                <div class="file-info">
+                    <strong>ID:</strong> ${fileInfo.id}<br>
+                    <strong>Nome Original:</strong> ${fileInfo.originalName}<br>
+                    <strong>Nome do Arquivo:</strong> ${fileInfo.filename}<br>
+                    <strong>Tamanho:</strong> ${formatFileSize(fileInfo.size)}<br>
+                    <strong>URL:</strong> <a href="${fileInfo.url}" target="_blank">${fileInfo.url}</a>
+                </div>
+                <div class="actions">
+                    <a href="/api/uploads/${fileInfo.id}/view" target="_blank" class="action-btn view">Visualizar</a>
+                    <a href="/api/uploads/${fileInfo.id}/download" class="action-btn">Download</a>
+                    <button onclick="deleteFile('${fileInfo.id}')" class="action-btn delete">Deletar</button>
+                </div>
+            `;
+            
+            resultContent.innerHTML = html;
+            resultDiv.className = 'result';
+            resultDiv.style.display = 'block';
+            
+            // Reset form
+            uploadForm.reset();
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        async function deleteFile(fileId) {
+            if (!confirm('Tem certeza que deseja deletar este arquivo?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/uploads/${fileId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showResult('Arquivo deletado com sucesso!', 'success');
+                } else {
+                    showResult(`Erro ao deletar: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                console.error('Erro ao deletar:', error);
+                showResult(`Erro de conexão: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
