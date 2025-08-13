@@ -8,6 +8,8 @@ import { PersonRouter } from "./personRouter.js";
 import { PostRouter } from "./postRouter.js";
 import { StorageRouter } from "./storageRouter.js";
 import { TagRouter } from "./tagRouter.js";
+import { CourseRouter } from "./courseRouter.js";
+import { UploadRouter } from "./uploadRouter.js";
 
 export class ApiRouter {
     constructor() {
@@ -22,6 +24,8 @@ export class ApiRouter {
         this.postRouter = new PostRouter();
         this.storageRouter = new StorageRouter();
         this.tagRouter = new TagRouter();
+        this.courseRouter = new CourseRouter();
+        this.uploadRouter = new UploadRouter();
         
         this.initRoutes();
     }
@@ -38,6 +42,8 @@ export class ApiRouter {
         this.router.use("/posts", this.postRouter.getRouter());
         this.router.use("/storage", this.storageRouter.getRouter());
         this.router.use("/tags", this.tagRouter.getRouter());
+        this.router.use("/courses", this.courseRouter.getRouter());
+        this.router.use("/uploads", this.uploadRouter.getRouter());
     }
 
     getRouter() {

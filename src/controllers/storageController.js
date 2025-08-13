@@ -1,266 +1,78 @@
-import { Storage } from '../models/schemas/storageSchema.js';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
+import { matchedData } from "express-validator";
+import { handleHttpError } from "../errors/handleError.js";
+import {Storage} from "../models/schemas/storageSchema.js";
+import dotenv from "dotenv";
+import fs from "fs";
+dotenv.config();
+const PUBLIC_URL = process.env.BASE_URL || "http://localhost:3003/";
 
-export class StorageController {
-    async create(req, res) {
-        try {
-            const storage = new Storage(req.body);
-            const savedStorage = await storage.save();
-            
-            res.status(201).json({
-                success: true,
-                message: 'Storage created successfully',
-                data: savedStorage
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error creating storage',
-                error: error.message
-            });
-        }
+
+
+/** GET obtem lista de items **/
+export const getItems = async (req, res) => {
+  try {
+    if (!Storage) {
+      return res.status(500).json({ message: "Modelo Storage não encontrado." });
     }
+    // Busca todos os items storage do banco de dados
+    const data = await Storage.find();
+    res.status(200).json({data});
+  } catch (error) {
+    handleHttpError(res, "ERROR_GET_ITEMS", error);   
+  }
+};
+export const getItem = async(req, res) => {
+   try {
+     const id=req.params.id
+     const data = await Storage.findById(id);
+     if (!data) {
+       return res.status(404).json({ message: "Item not found." });
+     }
+     res.status(200).json({ data });
+   } catch (error) {
+     console.log(error);
+     handleHttpError(res, "ERROR_GET_ITEM", error);
+   }
+}
 
-    async getAll(req, res) {
-        try {
-            const page = parseInt(req.query.page) || 1;
-            const limit = parseInt(req.query.limit) || 10;
-            const skip = (page - 1) * limit;
-            
-            const filter = {};
-            
-            // Include deleted files if requested
-            const includeDeleted = req.query.includeDeleted === 'true';
-            
-            if (req.query.search) {
-                filter.$or = [
-                    { filename: { $regex: req.query.search, $options: 'i' } },
-                    { url: { $regex: req.query.search, $options: 'i' } }
-                ];
-            }
-
-            if (req.query.fileType) {
-                filter.filename = { $regex: `\\.${req.query.fileType}$`, $options: 'i' };
-            }
-
-            let query = Storage.find(filter);
-            
-            if (includeDeleted) {
-                query = Storage.findWithDeleted(filter);
-            }
-
-            const storages = await query
-                .skip(skip)
-                .limit(limit)
-                .sort({ createdAt: -1 });
-
-            const total = includeDeleted 
-                ? await Storage.countDocumentsWithDeleted(filter)
-                : await Storage.countDocuments(filter);
-
-            res.status(200).json({
-                success: true,
-                data: storages,
-                pagination: {
-                    currentPage: page,
-                    totalPages: Math.ceil(total / limit),
-                    totalItems: total,
-                    itemsPerPage: limit
-                }
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error retrieving storages',
-                error: error.message
-            });
+export const createItem = async(req, res) => {
+    try {
+        const file = req.file;
+        if (!file) {
+            return res.status(400).json({ message: "No file uploaded." });
         }
+        console.log(file);
+
+        const fileData = {
+            url: `${PUBLIC_URL}${file.filename}`,
+            filename: file.filename
+        };
+        const data = await Storage.create(fileData);
+        res.status(201).json({ data });
+
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "500: Internal Server Error" });
     }
+};
 
-    async getById(req, res) {
-        try {
-            const includeDeleted = req.query.includeDeleted === 'true';
-            
-            let storage;
-            if (includeDeleted) {
-                storage = await Storage.findOneWithDeleted({ _id: req.params.id });
-            } else {
-                storage = await Storage.findById(req.params.id);
-            }
 
-            if (!storage) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Storage not found'
-                });
-            }
 
-            res.status(200).json({
-                success: true,
-                data: storage
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error retrieving storage',
-                error: error.message
-            });
+
+export const deleteItem = async(req, res) => {
+      try {
+        const id = req.params.id || matchedData(req).id;
+        const data = await Storage.findByIdAndDelete(id);
+        if (!data) {
+          return res.status(404).json({ message: "Item not found." });
         }
-    }
-
-    async update(req, res) {
-        try {
-            const storage = await Storage.findByIdAndUpdate(
-                req.params.id,
-                req.body,
-                { new: true, runValidators: true }
-            );
-
-            if (!storage) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Storage not found'
-                });
-            }
-
-            res.status(200).json({
-                success: true,
-                message: 'Storage updated successfully',
-                data: storage
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error updating storage',
-                error: error.message
-            });
+        const { filename } = data;
+        const filePath = `${process.env.STORAGE_PATH}/${filename}`;
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
         }
-    }
-
-    async delete(req, res) {
-        try {
-            const storage = await Storage.findById(req.params.id);
-
-            if (!storage) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Storage not found'
-                });
-            }
-
-            await storage.delete(); // Soft delete
-
-            res.status(200).json({
-                success: true,
-                message: 'Storage deleted successfully'
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error deleting storage',
-                error: error.message
-            });
-        }
-    }
-
-    async restore(req, res) {
-        try {
-            const storage = await Storage.findOneWithDeleted({ _id: req.params.id });
-
-            if (!storage) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Storage not found'
-                });
-            }
-
-            if (!storage.deleted) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Storage is not deleted'
-                });
-            }
-
-            await storage.restore();
-
-            const restoredStorage = await Storage.findById(req.params.id);
-
-            res.status(200).json({
-                success: true,
-                message: 'Storage restored successfully',
-                data: restoredStorage
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error restoring storage',
-                error: error.message
-            });
-        }
-    }
-
-    async upload(req, res) {
-        try {
-            if (!req.file) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'No file uploaded'
-                });
-            }
-
-            const baseUrl = `${req.protocol}://${req.get('host')}`;
-            const fileUrl = `${baseUrl}/uploads/${req.file.filename}`;
-
-            const storage = new Storage({
-                url: fileUrl,
-                filename: req.file.filename
-            });
-
-            const savedStorage = await storage.save();
-
-            res.status(201).json({
-                success: true,
-                message: 'File uploaded successfully',
-                data: savedStorage
-            });
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error uploading file',
-                error: error.message
-            });
-        }
-    }
-
-    async download(req, res) {
-        try {
-            const storage = await Storage.findById(req.params.id);
-
-            if (!storage) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Storage not found'
-                });
-            }
-
-            const filePath = path.join(process.cwd(), 'STORAGE', storage.filename);
-
-            if (!fs.existsSync(filePath)) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'File not found on server'
-                });
-            }
-
-            res.download(filePath, storage.filename);
-        } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Error downloading file',
-                error: error.message
-            });
-        }
-    }
+        res.status(200).json({ message: "Item deleted successfully." });
+      } catch (error) {
+        handleHttpError(res, "ERROR_DELETE_ITEM", error);
+      }
 }

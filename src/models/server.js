@@ -24,6 +24,7 @@ export class Server{
         this.app.use(express.urlencoded({ extended: true }));
         this.app.use(morgan("dev"));
         this.app.use(express.static(path.resolve("STORAGE")));
+          this.app.use(express.static(path.resolve("STORAGE")));
         this.app.use(express.static(path.resolve("public")));
 
     }
